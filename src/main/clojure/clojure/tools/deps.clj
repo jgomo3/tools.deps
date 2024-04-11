@@ -105,6 +105,14 @@
   (let [url (jio/resource "clojure/tools/deps/deps.edn")]
     (io/read-edn (BufferedReader. (InputStreamReader. (.openStream url))))))
 
+(defn- xdg-system?
+  "Heuristic to detect whether or not the current process in runing in
+  the context of an XDG System"
+  []
+  (let [xdg-config-dirs (System/getenv "XDG_CONFIG_DIRS")
+        xdg-default-config-dir (jio/file "/etc/xdg")]
+    (or xdg-config-dirs (.exists xdg-default-config-dir))))
+
 (defn user-deps-path
   "Use the same logic as clj to calculate the location of the user deps.edn.
   Note that it's possible no file may exist at this location."
@@ -112,9 +120,13 @@
   (let [config-env (System/getenv "CLJ_CONFIG")
         xdg-env (System/getenv "XDG_CONFIG_HOME")
         home (System/getProperty "user.home")
+        default-dot-clojure (str home File/separator ".clojure")
+        default-xdg-user-config (str/join File/separator [home ".config" "clojure"])
         config-dir (cond config-env config-env
-                         xdg-env (str xdg-env File/separator "clojure")
-                         :else (str home File/separator ".clojure"))]
+                         xdg-env (str home File/separator "clojure")
+                         (.exists (jio/file default-dot-clojure)) default-dot-clojure
+                         (xdg-system?) default-xdg-user-config
+                         :else default-dot-clojure)]
     (str config-dir File/separator "deps.edn")))
 
 (defn find-edn-maps
